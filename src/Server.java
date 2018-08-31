@@ -2,6 +2,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -15,8 +17,8 @@ public class Server extends JFrame {
     private Socket  connection;
     private JTextArea chatWindow;
     private JTextField userText;
-    private ObjectInputStream input;
-    private ObjectOutputStream output;
+    private DataInputStream input;
+    private DataOutputStream output;
 
     public Server() {
         super("Bao's Messenger");
@@ -52,7 +54,7 @@ public class Server extends JFrame {
                 } catch (EOFException e) {
                     showMessage("\n Server ended the connection");
                 } finally {
-                    closeStuff();
+                    closeConnection();
                 }
             }
         } catch (IOException e) {
@@ -70,9 +72,9 @@ public class Server extends JFrame {
 
     // get stream to send and receive
     private void setupStreams() throws IOException{
-        input = new ObjectInputStream(connection.getInputStream());
-        output = new ObjectOutputStream(connection.getOutputStream());
-        output.flush();
+        input = new DataInputStream(connection.getInputStream());
+        output = new DataOutputStream(connection.getOutputStream());
+        //output.flush();
         showMessage("\n Streams are now setup!");
     }
 
@@ -82,12 +84,55 @@ public class Server extends JFrame {
         sendMessage(message);
         ableToType(true);
         do {
-            try {
-                message = (String) input.readObject();
+                message = input.readUTF();
                 showMessage("\n" + message);
-            } catch(ClassNotFoundException e) {
-                showMessage("\n Error" + e.getMessage());
-            }
         } while(!message.equals("CLIENT - END"));
+    }
+    // Close stream and socket
+    private void closeConnection() {
+        showMessage("\n Closing connections.. \n");
+        ableToType(false);
+        try {
+            input.close();
+            output.close();
+            connection.close();
+        } catch (IOException e) {
+            System.out.println(e.getStackTrace());
+            System.out.println(e.getMessage());
+        }
+    }
+
+    // send message to a client
+    private void sendMessage(String message) {
+        try {
+            output.writeUTF("SERVER - " + message);
+            output.flush();
+            showMessage("\nSERVER - " + message);
+        } catch(IOException e) {
+            chatWindow.append("\n ERROR: CAN'T SEND THE MESSAGE");
+        }
+    }
+
+    // show message in the chat window
+    private void showMessage(final String message){
+        SwingUtilities.invokeLater(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        chatWindow.append(message);
+                    }
+                }
+        );
+    }
+
+    private void ableToType(final boolean state){
+        SwingUtilities.invokeLater(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        userText.setEditable(state);
+                    }
+                }
+        );
     }
 }
